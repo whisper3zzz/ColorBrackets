@@ -31,6 +31,19 @@ The plugin works with any language supported by the IntelliJ Platform that uses 
 5. Select the downloaded `.zip` file.
 6. Restart the IDE.
 
+## Automatic Updates
+
+To receive automatic updates without manually downloading new versions:
+
+1. Open **Settings/Preferences** -> **Plugins**.
+2. Click the gear icon ⚙️ and select **Manage Plugin Repositories...**.
+3. Click **+** and add the following URL:
+   ```
+   https://raw.githubusercontent.com/whisper3zzz/ColorBrackets/main/updatePlugins.xml
+   ```
+4. Click **OK**.
+5. The IDE will now automatically check for updates to ColorBrackets.
+
 ## Building from Source
 
 To build the plugin locally:
