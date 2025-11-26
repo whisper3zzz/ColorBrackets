@@ -41,10 +41,19 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           TAG=${GITHUB_REF#refs/tags/}
+          
+          # 自动查找实际构建出的 zip 文件名，防止版本号不一致导致 404
+          ZIP_FILE=$(ls build/distributions/*.zip | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "Error: No distribution zip file found!"
+            exit 1
+          fi
+          FILENAME=$(basename "$ZIP_FILE")
+          
           cat <<EOF > updatePlugins.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <plugins>
-            <plugin id="com.whisper3zzz.plugin.ColorBrackets" url="https://github.com/${{ github.repository }}/releases/download/${TAG}/ColorBrackets-${VERSION}.zip" version="${VERSION}">
+            <plugin id="com.whisper3zzz.plugin.ColorBrackets" url="https://github.com/${{ github.repository }}/releases/download/${TAG}/${FILENAME}" version="${VERSION}">
               <name>ColorBrackets</name>
               <description>
               <![CDATA[
