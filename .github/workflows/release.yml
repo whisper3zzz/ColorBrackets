@@ -35,3 +35,37 @@ jobs:
           files: build/distributions/*.zip
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      - name: Generate updatePlugins.xml
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          TAG=${GITHUB_REF#refs/tags/}
+          cat <<EOF > updatePlugins.xml
+          <?xml version="1.0" encoding="UTF-8"?>
+          <plugins>
+            <plugin id="com.whisper3zzz.plugin.ColorBrackets" url="https://github.com/${{ github.repository }}/releases/download/${TAG}/ColorBrackets-${VERSION}.zip" version="${VERSION}">
+              <name>ColorBrackets</name>
+              <description>
+              <![CDATA[
+                Rainbow Brackets and Scope Highlight.
+                <br>
+                See <a href="https://github.com/${{ github.repository }}/releases/tag/${TAG}">release notes</a>.
+              ]]>
+              </description>
+            </plugin>
+          </plugins>
+          EOF
+
+      - name: Push updatePlugins.xml to main
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+          git fetch origin main
+          git checkout main
+          mv updatePlugins.xml updatePlugins.xml.new
+          mv updatePlugins.xml.new updatePlugins.xml
+          git add updatePlugins.xml
+          git commit -m "Update updatePlugins.xml for version ${GITHUB_REF#refs/tags/v}" || echo "No changes to commit"
+          git push origin main
