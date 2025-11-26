@@ -23,9 +23,16 @@ class RainbowAnnotator : Annotator {
     private val attributeCache = ConcurrentHashMap<Color, TextAttributes>()
 
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
-        // Optimization: Fast check for leaf nodes and text length
-        if (element.firstChild != null) return // Not a leaf
-        if (element.textLength != 1) return // Most brackets are single char
+        // Optimization: Check text length first as it's the cheapest
+        if (element.textLength != 1) return 
+        
+        // Relaxed leaf check: Instead of element.firstChild != null, we check if it has significant children.
+        // Some PSI implementations might have empty children arrays but return null for firstChild, or vice versa.
+        // Or they might have children that are just whitespace/empty.
+        // For safety in C++ (CLion) and other complex PSIs, we trust the text check more.
+        // But to avoid annotating parent nodes that happen to have text "(" (unlikely for 1-char nodes but possible),
+        // we can check if it's a "token" type or has no children.
+        if (element.children.isNotEmpty()) return
 
         val text = element.text
         if (!openingBrackets.contains(text) && !closingBrackets.contains(text)) return
@@ -48,11 +55,7 @@ class RainbowAnnotator : Annotator {
 
     private fun getLevel(element: PsiElement): Int {
         var level = 0
-        // Start counting from the parent's parent to make the outermost bracket Level 0 (Yellow)
-        // element is the bracket leaf node. element.parent is the container (e.g. Class).
-        // We want the container itself to be Level 0.
-        // So we count how many containers are *above* element.parent.
-        var current = element.parent?.parent
+        var current = element.parent
         
         val maxDepth = 20
         while (current != null && current !is PsiFile && level < maxDepth) {
@@ -61,7 +64,10 @@ class RainbowAnnotator : Annotator {
             }
             current = current.parent
         }
-        return level
+        // The immediate parent (or the first container found) is the container OF the bracket.
+        // We want that to be Level 0.
+        // So we subtract 1 from the total count of containers.
+        return (level - 1).coerceAtLeast(0)
     }
 
     private fun hasBrackets(element: PsiElement): Boolean {
@@ -76,12 +82,14 @@ class RainbowAnnotator : Annotator {
     private fun computeHasBrackets(element: PsiElement): Boolean {
         // Check if this element has any children that are brackets
         // Optimization: Check first few and last few children
-        val maxScan = 10
+        // Increased scan limit to handle complex nodes (e.g. C++ macros, long lists)
+        val maxScan = 100
         
         var child = element.firstChild
         var count = 0
         while (child != null && count < maxScan) {
-            if (child.textLength == 1 && openingBrackets.contains(child.text)) return true
+            // Relaxed check: just contains text, ignore length check to be safe against whitespace/tokens
+            if (openingBrackets.contains(child.text)) return true
             child = child.nextSibling
             count++
         }
@@ -89,7 +97,7 @@ class RainbowAnnotator : Annotator {
         child = element.lastChild
         count = 0
         while (child != null && count < maxScan) {
-            if (child.textLength == 1 && closingBrackets.contains(child.text)) return true
+            if (closingBrackets.contains(child.text)) return true
             child = child.prevSibling
             count++
         }
