@@ -32,11 +32,15 @@ class ScopeHighlightActivity : ProjectActivity {
         // Register for future editors
         val editorFactoryListener = object : com.intellij.openapi.editor.event.EditorFactoryListener {
             override fun editorCreated(event: com.intellij.openapi.editor.event.EditorFactoryEvent) {
-                listener.install(event.editor)
+                if (event.editor.project == project) {
+                    listener.install(event.editor)
+                }
             }
 
             override fun editorReleased(event: com.intellij.openapi.editor.event.EditorFactoryEvent) {
-                listener.uninstall(event.editor)
+                if (event.editor.project == project) {
+                    listener.uninstall(event.editor)
+                }
             }
         }
         com.intellij.openapi.editor.EditorFactory.getInstance().addEditorFactoryListener(editorFactoryListener, project)
