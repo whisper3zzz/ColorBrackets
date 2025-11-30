@@ -196,26 +196,9 @@ class ScopeLineRenderer(private val color: Color) : CustomHighlighterRenderer {
 
         if (startLine >= endLine) return
 
-        // Calculate X position based on the indentation of the start line
-        // We want the line to align with the start of the text on the start line
-        val startLineStartOffset = doc.getLineStartOffset(startLine)
-        val startLineEndOffset = doc.getLineEndOffset(startLine)
-
-        // Use charsSequence to avoid creating String objects
-        val chars = doc.charsSequence
-        var indentSize = 0
-        for (i in startLineStartOffset until startLineEndOffset) {
-            val char = chars[i]
-            if (char == ' ' || char == '\t') {
-                indentSize++
-            } else {
-                break
-            }
-        }
-
-        // Calculate visual position of that indentation
-        val indentVisualPos = editor.offsetToVisualPosition(startLineStartOffset + indentSize)
-        val x = editor.visualPositionToXY(indentVisualPos).x
+        val startX = getLineIndentX(editor, startLine)
+        val endX = getLineIndentX(editor, endLine)
+        val x = kotlin.math.min(startX, endX)
 
         // Draw line from startLine + 1 to endLine
         val topY = editor.visualPositionToXY(editor.offsetToVisualPosition(doc.getLineStartOffset(startLine))).y + editor.lineHeight
@@ -226,5 +209,24 @@ class ScopeLineRenderer(private val color: Color) : CustomHighlighterRenderer {
         // Draw a slightly thicker line or just 1px
         g.drawLine(x, topY, x, bottomY)
         g.color = oldColor
+    }
+
+    private fun getLineIndentX(editor: Editor, line: Int): Int {
+        val doc = editor.document
+        val lineStart = doc.getLineStartOffset(line)
+        val lineEnd = doc.getLineEndOffset(line)
+        val chars = doc.charsSequence
+
+        var offset = lineStart
+        while (offset < lineEnd) {
+            val c = chars[offset]
+            if (c != ' ' && c != '\t') {
+                break
+            }
+            offset++
+        }
+
+        val visualPos = editor.offsetToVisualPosition(offset)
+        return editor.visualPositionToXY(visualPos).x
     }
 }

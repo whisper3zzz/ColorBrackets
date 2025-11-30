@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.whisper3zzz.plugin"
-version = "1.0.9"
+version = "1.1.0"
 
 repositories {
     mavenCentral()

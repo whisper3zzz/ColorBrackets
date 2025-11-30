@@ -4,6 +4,7 @@ import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.editor.markup.TextAttributes
+import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.CachedValueProvider
@@ -15,7 +16,7 @@ import java.awt.Color
 import java.awt.Font
 import java.util.concurrent.ConcurrentHashMap
 
-class RainbowAnnotator : Annotator {
+class RainbowAnnotator : Annotator, DumbAware {
     private val openingBrackets = setOf("(", "[", "{", "<")
     private val closingBrackets = setOf(")", "]", "}", ">")
     
