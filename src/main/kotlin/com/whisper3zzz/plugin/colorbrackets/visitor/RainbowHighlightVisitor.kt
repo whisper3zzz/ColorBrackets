@@ -1,9 +1,11 @@
 package com.whisper3zzz.plugin.colorbrackets.visitor
 
 import com.intellij.codeInsight.daemon.impl.HighlightInfo
+import com.intellij.codeInsight.daemon.impl.HighlightInfoType
 import com.intellij.codeInsight.daemon.impl.HighlightVisitor
 import com.intellij.codeInsight.daemon.impl.analysis.HighlightInfoHolder
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
@@ -23,6 +25,11 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
     private val attributeCache = ConcurrentHashMap<Color, TextAttributes>()
     
     private var highlightInfoHolder: HighlightInfoHolder? = null
+    
+    private val rainbowInfoType = HighlightInfoType.HighlightInfoTypeImpl(
+        HighlightSeverity.INFORMATION, 
+        DefaultLanguageHighlighterColors.CONSTANT
+    )
 
     override fun suitableForFile(file: PsiFile): Boolean {
         // Only process code files, not plain text or documents
@@ -62,11 +69,12 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
     private fun addHighlight(element: PsiElement, attributes: TextAttributes) {
         val holder = highlightInfoHolder ?: return
         
-        val builder = HighlightInfo.newHighlightInfo(HighlightSeverity.INFORMATION)
+        val info = HighlightInfo.newHighlightInfo(rainbowInfoType)
             .range(element)
             .textAttributes(attributes)
+            .create()
         
-        holder.add(builder.create())
+        holder.add(info)
     }
 
     override fun clone(): HighlightVisitor = RainbowHighlightVisitor()
