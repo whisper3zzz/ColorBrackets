@@ -1,40 +1,54 @@
-package com.whisper3zzz.plugin.colorbrackets.annotator
+package com.whisper3zzz.plugin.colorbrackets.visitor
 
-import com.intellij.lang.annotation.AnnotationHolder
-import com.intellij.lang.annotation.Annotator
+import com.intellij.codeInsight.daemon.impl.HighlightInfo
+import com.intellij.codeInsight.daemon.impl.HighlightVisitor
+import com.intellij.codeInsight.daemon.impl.analysis.HighlightInfoHolder
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.util.CachedValueProvider
-import com.intellij.psi.util.CachedValuesManager
-import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.whisper3zzz.plugin.colorbrackets.util.RainbowColors
 import java.awt.Color
 import java.awt.Font
 import java.util.concurrent.ConcurrentHashMap
 
-class RainbowAnnotator : Annotator, DumbAware {
+class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
+    
     private val openingBrackets = setOf("(", "[", "{", "<")
     private val closingBrackets = setOf(")", "]", "}", ">")
     
     // Cache TextAttributes to reduce object allocation
     private val attributeCache = ConcurrentHashMap<Color, TextAttributes>()
+    
+    private var highlightInfoHolder: HighlightInfoHolder? = null
 
-    override fun annotate(element: PsiElement, holder: AnnotationHolder) {
-        // Optimization: Check text length first as it's the cheapest
-        if (element.textLength != 1) return 
+    override fun suitableForFile(file: PsiFile): Boolean {
+        // Only process code files, not plain text or documents
+        val language = file.language.id
+        return !isExcludedLanguage(language)
+    }
+
+    override fun analyze(
+        file: PsiFile,
+        updateWholeFile: Boolean,
+        holder: HighlightInfoHolder,
+        action: Runnable
+    ): Boolean {
+        highlightInfoHolder = holder
+        try {
+            action.run()
+        } finally {
+            highlightInfoHolder = null
+        }
+        return true
+    }
+
+    override fun visit(element: PsiElement) {
+        // Only process leaf elements with single character
+        if (element !is LeafPsiElement || element.textLength != 1) return
         
-        // Relaxed leaf check: Instead of element.firstChild != null, we check if it has significant children.
-        // Some PSI implementations might have empty children arrays but return null for firstChild, or vice versa.
-        // Or they might have children that are just whitespace/empty.
-        // For safety in C++ (CLion) and other complex PSIs, we trust the text check more.
-        // But to avoid annotating parent nodes that happen to have text "(" (unlikely for 1-char nodes but possible),
-        // we can check if it's a "token" type or has no children.
-        if (element.children.isNotEmpty()) return
-
         val text = element.text
         if (!openingBrackets.contains(text) && !closingBrackets.contains(text)) return
 
@@ -42,11 +56,20 @@ class RainbowAnnotator : Annotator, DumbAware {
         val color = getColorForBracket(text, level)
         val attributes = getAttributes(color)
 
-        holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
-            .range(element)
-            .enforcedTextAttributes(attributes)
-            .create()
+        addHighlight(element, attributes)
     }
+
+    private fun addHighlight(element: PsiElement, attributes: TextAttributes) {
+        val holder = highlightInfoHolder ?: return
+        
+        val builder = HighlightInfo.newHighlightInfo(HighlightSeverity.INFORMATION)
+            .range(element)
+            .textAttributes(attributes)
+        
+        holder.add(builder.create())
+    }
+
+    override fun clone(): HighlightVisitor = RainbowHighlightVisitor()
 
     private fun getAttributes(color: Color): TextAttributes {
         return attributeCache.computeIfAbsent(color) {
@@ -65,31 +88,15 @@ class RainbowAnnotator : Annotator, DumbAware {
             }
             current = current.parent
         }
-        // The immediate parent (or the first container found) is the container OF the bracket.
-        // We want that to be Level 0.
-        // So we subtract 1 from the total count of containers.
         return (level - 1).coerceAtLeast(0)
     }
 
     private fun hasBrackets(element: PsiElement): Boolean {
-        return CachedValuesManager.getCachedValue(element) {
-            CachedValueProvider.Result.create(
-                computeHasBrackets(element),
-                PsiModificationTracker.MODIFICATION_COUNT
-            )
-        }
-    }
-
-    private fun computeHasBrackets(element: PsiElement): Boolean {
-        // Check if this element has any children that are brackets
-        // Optimization: Check first few and last few children
-        // Increased scan limit to handle complex nodes (e.g. C++ macros, long lists)
         val maxScan = 100
         
         var child = element.firstChild
         var count = 0
         while (child != null && count < maxScan) {
-            // Relaxed check: just contains text, ignore length check to be safe against whitespace/tokens
             if (openingBrackets.contains(child.text)) return true
             child = child.nextSibling
             count++
@@ -114,5 +121,17 @@ class RainbowAnnotator : Annotator, DumbAware {
             "<", ">" -> RainbowColors.getColor(level, RainbowColors.ANGLE_BRACKETS)
             else -> RainbowColors.getColor(level, RainbowColors.ROUND_BRACKETS)
         }
+    }
+
+    private fun isExcludedLanguage(language: String): Boolean {
+        // Exclude plain text and document file types (not code)
+        return excludedLanguages.contains(language)
+    }
+
+    companion object {
+        private val excludedLanguages = setOf(
+            "TEXT", "PLAIN_TEXT", "Markdown", "Properties", "Shell Script",
+            "Batch", "Git file", "Log", "AsciiDoc", "reStructuredText"
+        )
     }
 }

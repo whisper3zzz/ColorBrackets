@@ -29,7 +29,7 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <annotator language="" implementationClass="com.whisper3zzz.plugin.colorbrackets.annotator.RainbowAnnotator"/>
+        <highlightVisitor implementation="com.whisper3zzz.plugin.colorbrackets.visitor.RainbowHighlightVisitor"/>
         <postStartupActivity implementation="com.whisper3zzz.plugin.colorbrackets.listener.ScopeHighlightActivity"/>
     </extensions>
 </idea-plugin>
