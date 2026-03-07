@@ -59,7 +59,8 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
 
     // WeakHashMap: Editor keys won't prevent GC if editor is disposed/collected
     private val highlighters = WeakHashMap<Editor, RangeHighlighter>()
-    private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+    // Per-editor alarm to avoid cancelling other editors' pending updates
+    private val alarms = WeakHashMap<Editor, Alarm>()
 
     init {
         Disposer.register(project, this)
@@ -74,19 +75,22 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
         editor.caretModel.removeCaretListener(this)
         clearHighlighter(editor)
         highlighters.remove(editor)
+        alarms.remove(editor)?.dispose()
     }
 
     override fun dispose() {
-        alarm.cancelAllRequests()
-        // Clean up any remaining highlighters
+        // Clean up any remaining highlighters and alarms
         highlighters.forEach { (editor, _) ->
             if (!editor.isDisposed) clearHighlighter(editor)
         }
         highlighters.clear()
+        alarms.values.forEach { it.dispose() }
+        alarms.clear()
     }
 
     override fun caretPositionChanged(event: CaretEvent) {
         val editor = event.editor
+        val alarm = alarms.getOrPut(editor) { Alarm(Alarm.ThreadToUse.SWING_THREAD, this) }
         alarm.cancelAllRequests()
         alarm.addRequest({
             if (!editor.isDisposed && !project.isDisposed) {
