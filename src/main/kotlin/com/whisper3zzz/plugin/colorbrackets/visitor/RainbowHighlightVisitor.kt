@@ -11,6 +11,7 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.source.tree.LeafPsiElement
+import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
 import com.whisper3zzz.plugin.colorbrackets.util.RainbowColors
 import java.awt.Color
 import java.awt.Font
@@ -32,6 +33,8 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
     )
 
     override fun suitableForFile(file: PsiFile): Boolean {
+        val settings = ColorBracketsSettings.instance
+        if (!settings.isEnabled) return false
         // Only process code files, not plain text or documents
         val language = file.language.id
         return !isExcludedLanguage(language)
@@ -57,7 +60,21 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         if (element !is LeafPsiElement || element.textLength != 1) return
         
         val text = element.text
-        if (!openingBrackets.contains(text) && !closingBrackets.contains(text)) return
+        val settings = ColorBracketsSettings.instance
+        
+        val isOpening = openingBrackets.contains(text)
+        val isClosing = closingBrackets.contains(text)
+        if (!isOpening && !isClosing) return
+
+        // Check per-bracket-type settings
+        val enabled = when (text) {
+            "(", ")" -> settings.enableRoundBrackets
+            "[", "]" -> settings.enableSquareBrackets
+            "{", "}" -> settings.enableCurlyBrackets
+            "<", ">" -> settings.enableAngleBrackets
+            else -> false
+        }
+        if (!enabled) return
 
         val level = getLevel(element)
         val color = getColorForBracket(text, level)

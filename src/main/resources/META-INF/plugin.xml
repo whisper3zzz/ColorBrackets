@@ -31,5 +31,11 @@
     <extensions defaultExtensionNs="com.intellij">
         <highlightVisitor implementation="com.whisper3zzz.plugin.colorbrackets.visitor.RainbowHighlightVisitor"/>
         <postStartupActivity implementation="com.whisper3zzz.plugin.colorbrackets.listener.ScopeHighlightActivity"/>
+        <applicationService serviceImplementation="com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings"/>
+        <applicationConfigurable
+            parentId="editor"
+            instance="com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsConfigurable"
+            id="com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsConfigurable"
+            displayName="ColorBrackets"/>
     </extensions>
 </idea-plugin>

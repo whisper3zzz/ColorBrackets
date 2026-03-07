@@ -18,6 +18,7 @@ import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.psi.util.PsiTreeUtil
+import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
 import com.whisper3zzz.plugin.colorbrackets.util.RainbowColors
 import java.awt.Color
 import java.awt.Graphics
@@ -79,15 +80,19 @@ class ScopeHighlightManager(private val project: Project) : CaretListener {
     private fun updateHighlighter(editor: Editor) {
         if (project.isDisposed || editor.isDisposed) return
 
+        val settings = ColorBracketsSettings.instance
+        
+        // Remove old highlighter first
+        highlighters[editor]?.let { editor.markupModel.removeHighlighter(it) }
+        highlighters.remove(editor)
+
+        // Skip if disabled
+        if (!settings.isEnabled || !settings.enableScopeHighlight) return
+
         val offset = editor.caretModel.offset
         // Use cached PSI if possible to avoid re-parsing on every keystroke if not committed
         val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(editor.document) ?: return
 
-        // Remove old highlighter
-        highlighters[editor]?.let { editor.markupModel.removeHighlighter(it) }
-        highlighters.remove(editor)
-
-        val element = psiFile.findElementAt(offset) ?: return
         val container = findContainer(element) ?: return
 
         val range = container.textRange
