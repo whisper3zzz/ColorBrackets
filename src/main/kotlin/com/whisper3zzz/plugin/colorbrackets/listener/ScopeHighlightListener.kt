@@ -68,7 +68,7 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
 
     fun install(editor: Editor) {
         editor.caretModel.removeCaretListener(this)
-        editor.caretModel.addCaretListener(this, editor)  // tied to editor lifetime
+        editor.caretModel.addCaretListener(this, this)  // tied to manager (project) lifetime
     }
 
     fun uninstall(editor: Editor) {
