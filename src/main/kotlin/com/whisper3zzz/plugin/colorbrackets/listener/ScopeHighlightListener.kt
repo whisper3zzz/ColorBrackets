@@ -4,125 +4,145 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
+import com.intellij.openapi.editor.markup.CustomHighlighterRenderer
 import com.intellij.openapi.editor.markup.HighlighterLayer
 import com.intellij.openapi.editor.markup.HighlighterTargetArea
 import com.intellij.openapi.editor.markup.RangeHighlighter
+import com.intellij.openapi.editor.markup.RangeHighlighter as RangeHighlighterModel
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.fileEditor.FileEditorManagerListener
-import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.Alarm
 import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
 import com.whisper3zzz.plugin.colorbrackets.util.RainbowColors
 import java.awt.Color
 import java.awt.Graphics
-import com.intellij.openapi.editor.markup.CustomHighlighterRenderer
-import com.intellij.openapi.editor.markup.RangeHighlighter as RangeHighlighterModel
-import com.intellij.util.Alarm
+import java.util.WeakHashMap
 
 class ScopeHighlightActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
-        val listener = ScopeHighlightManager(project)
+        val manager = ScopeHighlightManager(project)
 
-        // Register for future editors
         val editorFactoryListener = object : com.intellij.openapi.editor.event.EditorFactoryListener {
             override fun editorCreated(event: com.intellij.openapi.editor.event.EditorFactoryEvent) {
                 if (event.editor.project == project) {
-                    listener.install(event.editor)
+                    manager.install(event.editor)
                 }
             }
 
             override fun editorReleased(event: com.intellij.openapi.editor.event.EditorFactoryEvent) {
                 if (event.editor.project == project) {
-                    listener.uninstall(event.editor)
+                    manager.uninstall(event.editor)
                 }
             }
         }
-        com.intellij.openapi.editor.EditorFactory.getInstance().addEditorFactoryListener(editorFactoryListener, project)
+
+        val editorFactory = com.intellij.openapi.editor.EditorFactory.getInstance()
+        editorFactory.addEditorFactoryListener(editorFactoryListener, project)
 
         // Register for currently open editors
-        for (editor in com.intellij.openapi.editor.EditorFactory.getInstance().allEditors) {
+        for (editor in editorFactory.allEditors) {
             if (editor.project == project) {
-                listener.install(editor)
+                manager.install(editor)
             }
         }
     }
 }
 
-class ScopeHighlightManager(private val project: Project) : CaretListener {
-    private val highlighters = mutableMapOf<Editor, RangeHighlighter>()
-    private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, project)
+class ScopeHighlightManager(private val project: Project) : CaretListener, Disposable {
+
+    // WeakHashMap: Editor keys won't prevent GC if editor is disposed/collected
+    private val highlighters = WeakHashMap<Editor, RangeHighlighter>()
+    private val alarm = Alarm(Alarm.ThreadToUse.SWING_THREAD, this)
+
+    init {
+        Disposer.register(project, this)
+    }
 
     fun install(editor: Editor) {
         editor.caretModel.removeCaretListener(this)
-        editor.caretModel.addCaretListener(this)
+        editor.caretModel.addCaretListener(this, editor)  // tied to editor lifetime
     }
 
     fun uninstall(editor: Editor) {
         editor.caretModel.removeCaretListener(this)
-        highlighters[editor]?.let { editor.markupModel.removeHighlighter(it) }
+        clearHighlighter(editor)
         highlighters.remove(editor)
     }
 
+    override fun dispose() {
+        alarm.cancelAllRequests()
+        // Clean up any remaining highlighters
+        highlighters.forEach { (editor, _) ->
+            if (!editor.isDisposed) clearHighlighter(editor)
+        }
+        highlighters.clear()
+    }
+
     override fun caretPositionChanged(event: CaretEvent) {
+        val editor = event.editor
         alarm.cancelAllRequests()
         alarm.addRequest({
-            updateHighlighter(event.editor)
+            if (!editor.isDisposed && !project.isDisposed) {
+                updateHighlighter(editor)
+            }
         }, 150)
+    }
+
+    private fun clearHighlighter(editor: Editor) {
+        if (!editor.isDisposed) {
+            highlighters[editor]?.let { editor.markupModel.removeHighlighter(it) }
+        }
     }
 
     private fun updateHighlighter(editor: Editor) {
         if (project.isDisposed || editor.isDisposed) return
 
         val settings = ColorBracketsSettings.instance
-        
+
         // Remove old highlighter first
-        highlighters[editor]?.let { editor.markupModel.removeHighlighter(it) }
+        clearHighlighter(editor)
         highlighters.remove(editor)
 
-        // Skip if disabled
+        // Skip if plugin or scope highlight disabled
         if (!settings.isEnabled || !settings.enableScopeHighlight) return
 
-        val offset = editor.caretModel.offset
-        // Use cached PSI if possible to avoid re-parsing on every keystroke if not committed
+        // Skip excluded (non-code) languages
         val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(editor.document) ?: return
+        if (isExcludedLanguage(psiFile.language.id)) return
 
+        val offset = editor.caretModel.offset
+        val element = psiFile.findElementAt(offset) ?: return
         val container = findContainer(element) ?: return
 
         val range = container.textRange
-        val startOffset = range.startOffset
-        val endOffset = range.endOffset
-
-        // Create a highlighter that covers the whole block
         val highlighter = editor.markupModel.addRangeHighlighter(
-            startOffset, endOffset,
+            range.startOffset, range.endOffset,
             HighlighterLayer.SELECTION - 1,
             null,
             HighlighterTargetArea.EXACT_RANGE
         )
 
-        // Determine color based on depth
         val depth = getDepth(container)
-        // Use depth directly to match the bracket color of the current block
-        val colorIndex = depth
-        val color = RainbowColors.CURLY_BRACKETS[colorIndex % RainbowColors.CURLY_BRACKETS.size]
-
+        val color = RainbowColors.CURLY_BRACKETS[depth % RainbowColors.CURLY_BRACKETS.size]
         highlighter.customRenderer = ScopeLineRenderer(color)
         highlighters[editor] = highlighter
     }
 
+    private fun isExcludedLanguage(language: String): Boolean {
+        return language in EXCLUDED_LANGUAGES
+    }
+
     private fun findContainer(element: PsiElement): PsiElement? {
         var current = element.parent
-        while (current != null && current !is com.intellij.psi.PsiFile) {
-            if (isBlock(current)) {
-                return current
-            }
+        while (current != null && current !is PsiFile) {
+            if (isBlock(current)) return current
             current = current.parent
         }
         return null
@@ -131,10 +151,8 @@ class ScopeHighlightManager(private val project: Project) : CaretListener {
     private fun getDepth(element: PsiElement): Int {
         var depth = 0
         var current = element.parent
-        while (current != null && current !is com.intellij.psi.PsiFile) {
-            if (isBlock(current)) {
-                depth++
-            }
+        while (current != null && current !is PsiFile) {
+            if (isBlock(current)) depth++
             current = current.parent
         }
         return depth
@@ -150,19 +168,11 @@ class ScopeHighlightManager(private val project: Project) : CaretListener {
     }
 
     private fun computeIsBlock(element: PsiElement): Boolean {
-        // Efficiently check for { } block without loading full text
-        // We look for a direct child that is a '{'
-        var child = element.firstChild
-        var hasOpen = false
-        var hasClose = false
-
-        // Limit the search to avoid performance issues on very large nodes with many children
-        // usually brackets are at the start/end
-        var count = 0
         val maxScan = 50
+        var hasOpen = false
 
-        // Scan from start
-        var scanner = child
+        var scanner = element.firstChild
+        var count = 0
         while (scanner != null && count < maxScan) {
             if (scanner.textLength == 1 && scanner.text == "{") {
                 hasOpen = true
@@ -171,22 +181,23 @@ class ScopeHighlightManager(private val project: Project) : CaretListener {
             scanner = scanner.nextSibling
             count++
         }
-
         if (!hasOpen) return false
 
-        // Scan from end
         scanner = element.lastChild
         count = 0
         while (scanner != null && count < maxScan) {
-            if (scanner.textLength == 1 && scanner.text == "}") {
-                hasClose = true
-                break
-            }
+            if (scanner.textLength == 1 && scanner.text == "}") return true
             scanner = scanner.prevSibling
             count++
         }
+        return false
+    }
 
-        return hasOpen && hasClose
+    companion object {
+        private val EXCLUDED_LANGUAGES = setOf(
+            "TEXT", "PLAIN_TEXT", "Markdown", "Properties", "Shell Script",
+            "Batch", "Git file", "Log", "AsciiDoc", "reStructuredText"
+        )
     }
 }
 
@@ -205,13 +216,15 @@ class ScopeLineRenderer(private val color: Color) : CustomHighlighterRenderer {
         val endX = getLineIndentX(editor, endLine)
         val x = kotlin.math.min(startX, endX)
 
-        // Draw line from startLine + 1 to endLine
-        val topY = editor.visualPositionToXY(editor.offsetToVisualPosition(doc.getLineStartOffset(startLine))).y + editor.lineHeight
-        val bottomY = editor.visualPositionToXY(editor.offsetToVisualPosition(doc.getLineStartOffset(endLine))).y
+        val topY = editor.visualPositionToXY(
+            editor.offsetToVisualPosition(doc.getLineStartOffset(startLine))
+        ).y + editor.lineHeight
+        val bottomY = editor.visualPositionToXY(
+            editor.offsetToVisualPosition(doc.getLineStartOffset(endLine))
+        ).y
 
         val oldColor = g.color
         g.color = color
-        // Draw a slightly thicker line or just 1px
         g.drawLine(x, topY, x, bottomY)
         g.color = oldColor
     }
@@ -224,14 +237,10 @@ class ScopeLineRenderer(private val color: Color) : CustomHighlighterRenderer {
 
         var offset = lineStart
         while (offset < lineEnd) {
-            val c = chars[offset]
-            if (c != ' ' && c != '\t') {
-                break
-            }
+            if (chars[offset] != ' ' && chars[offset] != '\t') break
             offset++
         }
 
-        val visualPos = editor.offsetToVisualPosition(offset)
-        return editor.visualPositionToXY(visualPos).x
+        return editor.visualPositionToXY(editor.offsetToVisualPosition(offset)).x
     }
 }
