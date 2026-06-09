@@ -17,6 +17,7 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
         var enableSquareBrackets: Boolean = true,
         var enableCurlyBrackets: Boolean = true,
         var enableAngleBrackets: Boolean = true,
+        var angleBracketMode: String = ANGLE_BRACKET_AUTO,
         var enableScopeHighlight: Boolean = true,
         var enableLargeFileLimit: Boolean = true,
         var maxFileSizeKb: Int = DEFAULT_MAX_FILE_SIZE_KB,
@@ -34,6 +35,7 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
 
     override fun loadState(state: State) {
         this.state = state
+        ColorBracketsSettingsTracker.incModificationCount()
     }
 
     var isEnabled: Boolean
@@ -55,6 +57,12 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
     var enableAngleBrackets: Boolean
         get() = state.enableAngleBrackets
         set(value) { state.enableAngleBrackets = value }
+
+    var angleBracketMode: String
+        get() = state.angleBracketMode
+        set(value) {
+            state.angleBracketMode = if (value in ANGLE_BRACKET_MODES) value else ANGLE_BRACKET_AUTO
+        }
 
     var enableScopeHighlight: Boolean
         get() = state.enableScopeHighlight
@@ -111,6 +119,11 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
         const val COLOR_PALETTE_VIVID = "VIVID"
         const val COLOR_PALETTE_SOFT = "SOFT"
         val COLOR_PALETTES = setOf(COLOR_PALETTE_DEFAULT, COLOR_PALETTE_VIVID, COLOR_PALETTE_SOFT)
+
+        const val ANGLE_BRACKET_AUTO = "AUTO"
+        const val ANGLE_BRACKET_ALWAYS = "ALWAYS"
+        const val ANGLE_BRACKET_NEVER = "NEVER"
+        val ANGLE_BRACKET_MODES = setOf(ANGLE_BRACKET_AUTO, ANGLE_BRACKET_ALWAYS, ANGLE_BRACKET_NEVER)
 
         const val LANGUAGE_FILTER_ALL = "ALL"
         const val LANGUAGE_FILTER_ONLY = "ONLY"

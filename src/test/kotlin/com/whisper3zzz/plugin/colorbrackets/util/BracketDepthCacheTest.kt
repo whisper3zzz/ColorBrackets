@@ -1,5 +1,6 @@
 package com.whisper3zzz.plugin.colorbrackets.util
 
+import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -117,6 +118,65 @@ class BracketDepthCacheTest {
         assertFalse(
             BracketDepthCache.acceptsAngleBracketContext(
                 sequenceOf("GT", "RELATIONAL_EXPRESSION", "IF_STATEMENT")
+            )
+        )
+    }
+
+    @Test
+    fun `auto angle mode accepts only generic contexts`() {
+        val settings = ColorBracketsSettings()
+        settings.angleBracketMode = ColorBracketsSettings.ANGLE_BRACKET_AUTO
+
+        assertTrue(
+            BracketDepthCache.shouldIncludeAngleBracket(
+                sequenceOf("LT", "CPP_TEMPLATE_ID"),
+                settings
+            )
+        )
+        assertFalse(
+            BracketDepthCache.shouldIncludeAngleBracket(
+                sequenceOf("LT", "BINARY_EXPRESSION"),
+                settings
+            )
+        )
+    }
+
+    @Test
+    fun `always angle mode accepts comparison contexts`() {
+        val settings = ColorBracketsSettings()
+        settings.angleBracketMode = ColorBracketsSettings.ANGLE_BRACKET_ALWAYS
+
+        assertTrue(
+            BracketDepthCache.shouldIncludeAngleBracket(
+                sequenceOf("LT", "BINARY_EXPRESSION"),
+                settings
+            )
+        )
+    }
+
+    @Test
+    fun `never angle mode excludes generic contexts`() {
+        val settings = ColorBracketsSettings()
+        settings.angleBracketMode = ColorBracketsSettings.ANGLE_BRACKET_NEVER
+
+        assertFalse(
+            BracketDepthCache.shouldIncludeAngleBracket(
+                sequenceOf("LT", "CPP_TEMPLATE_ID"),
+                settings
+            )
+        )
+    }
+
+    @Test
+    fun `disabled angle brackets are excluded from cache`() {
+        val settings = ColorBracketsSettings()
+        settings.enableAngleBrackets = false
+        settings.angleBracketMode = ColorBracketsSettings.ANGLE_BRACKET_ALWAYS
+
+        assertFalse(
+            BracketDepthCache.shouldIncludeAngleBracket(
+                sequenceOf("LT", "CPP_TEMPLATE_ID"),
+                settings
             )
         )
     }

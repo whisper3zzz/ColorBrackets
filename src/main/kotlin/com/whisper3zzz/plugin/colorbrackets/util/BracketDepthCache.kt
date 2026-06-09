@@ -6,6 +6,8 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
+import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
+import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettingsTracker
 
 object BracketDepthCache {
     data class Entry(
@@ -68,7 +70,8 @@ object BracketDepthCache {
         return CachedValuesManager.getCachedValue(file) {
             CachedValueProvider.Result.create(
                 build(file),
-                PsiModificationTracker.MODIFICATION_COUNT
+                PsiModificationTracker.MODIFICATION_COUNT,
+                ColorBracketsSettingsTracker
             )
         }
     }
@@ -79,13 +82,16 @@ object BracketDepthCache {
     }
 
     private fun build(file: PsiFile): Cache {
+        val settings = ColorBracketsSettings.instance
         val tokens = ArrayList<ScanToken>()
         forEachLeaf(file) { leaf ->
             if (leaf.textLength != 1 || shouldSkipContext(leaf)) return@forEachLeaf
 
             val symbol = leaf.text
             val kind = BracketSupport.kindOf(symbol) ?: return@forEachLeaf
-            if (kind == BracketKind.ANGLE && !isLikelyAngleBracket(leaf)) return@forEachLeaf
+            if (kind == BracketKind.ANGLE && !shouldIncludeAngleBracket(contextTypeNames(leaf), settings)) {
+                return@forEachLeaf
+            }
 
             tokens.add(ScanToken(symbol, leaf.textRange.startOffset))
         }
@@ -192,10 +198,6 @@ object BracketDepthCache {
         return false
     }
 
-    private fun isLikelyAngleBracket(element: PsiElement): Boolean {
-        return acceptsAngleBracketContext(contextTypeNames(element))
-    }
-
     private fun contextTypeNames(element: PsiElement): Sequence<String> = sequence {
         var current: PsiElement? = element
         var depth = 0
@@ -210,5 +212,18 @@ object BracketDepthCache {
         return contextTypeNames
             .map { it.uppercase() }
             .any { typeName -> angleContextMarkers.any { marker -> marker in typeName } }
+    }
+
+    internal fun shouldIncludeAngleBracket(
+        contextTypeNames: Sequence<String>,
+        settings: ColorBracketsSettings
+    ): Boolean {
+        if (!settings.enableAngleBrackets) return false
+
+        return when (settings.angleBracketMode) {
+            ColorBracketsSettings.ANGLE_BRACKET_ALWAYS -> true
+            ColorBracketsSettings.ANGLE_BRACKET_NEVER -> false
+            else -> acceptsAngleBracketContext(contextTypeNames)
+        }
     }
 }

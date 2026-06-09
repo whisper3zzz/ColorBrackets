@@ -21,6 +21,13 @@ class ColorBracketsConfigurable : Configurable {
     private val cbSquareBrackets = JBCheckBox("彩色方括号 [ ]")
     private val cbCurlyBrackets = JBCheckBox("彩色大括号 { }")
     private val cbAngleBrackets = JBCheckBox("彩色尖括号 < >")
+    private val cbAngleBracketMode = JComboBox(
+        arrayOf(
+            ColorBracketsSettings.ANGLE_BRACKET_AUTO,
+            ColorBracketsSettings.ANGLE_BRACKET_ALWAYS,
+            ColorBracketsSettings.ANGLE_BRACKET_NEVER
+        )
+    )
     private val cbScopeHighlight = JBCheckBox("启用代码块竖线高亮")
     private val cbBoldBrackets = JBCheckBox("括号加粗")
     private val cbColorPalette = JComboBox(
@@ -77,6 +84,9 @@ class ColorBracketsConfigurable : Configurable {
         cbScopeHighlight.addChangeListener {
             syncControlEnabledState()
         }
+        cbAngleBrackets.addChangeListener {
+            syncControlEnabledState()
+        }
         cbLanguageFilterMode.addActionListener {
             syncControlEnabledState()
         }
@@ -91,6 +101,7 @@ class ColorBracketsConfigurable : Configurable {
             .addComponent(cbSquareBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addComponent(cbCurlyBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addComponent(cbAngleBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
+            .addLabeledComponent("尖括号策略", cbAngleBracketMode)
             .addLabeledComponent("颜色方案", cbColorPalette)
             .addComponent(cbBoldBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addVerticalGap(8)
@@ -125,6 +136,7 @@ class ColorBracketsConfigurable : Configurable {
                 cbSquareBrackets.isSelected != settings.enableSquareBrackets ||
                 cbCurlyBrackets.isSelected != settings.enableCurlyBrackets ||
                 cbAngleBrackets.isSelected != settings.enableAngleBrackets ||
+                selectedAngleBracketMode() != settings.angleBracketMode ||
                 cbScopeHighlight.isSelected != settings.enableScopeHighlight ||
                 cbLargeFileLimit.isSelected != settings.enableLargeFileLimit ||
                 maxFileSizeKbValue() != settings.maxFileSizeKb ||
@@ -137,12 +149,14 @@ class ColorBracketsConfigurable : Configurable {
     }
 
     override fun apply() {
+        val changed = isModified()
         val settings = ColorBracketsSettings.instance
         settings.isEnabled = cbEnabled.isSelected
         settings.enableRoundBrackets = cbRoundBrackets.isSelected
         settings.enableSquareBrackets = cbSquareBrackets.isSelected
         settings.enableCurlyBrackets = cbCurlyBrackets.isSelected
         settings.enableAngleBrackets = cbAngleBrackets.isSelected
+        settings.angleBracketMode = selectedAngleBracketMode()
         settings.enableScopeHighlight = cbScopeHighlight.isSelected
         settings.enableLargeFileLimit = cbLargeFileLimit.isSelected
         settings.maxFileSizeKb = maxFileSizeKbValue()
@@ -152,6 +166,9 @@ class ColorBracketsConfigurable : Configurable {
         settings.scopeLineOpacity = scopeLineOpacityValue()
         settings.languageFilterMode = selectedLanguageFilterMode()
         settings.languageFilterList = tfLanguageFilterList.text
+        if (changed) {
+            ColorBracketsSettingsTracker.incModificationCount()
+        }
     }
 
     override fun reset() {
@@ -161,6 +178,7 @@ class ColorBracketsConfigurable : Configurable {
         cbSquareBrackets.isSelected = settings.enableSquareBrackets
         cbCurlyBrackets.isSelected = settings.enableCurlyBrackets
         cbAngleBrackets.isSelected = settings.enableAngleBrackets
+        cbAngleBracketMode.selectedItem = settings.angleBracketMode
         cbScopeHighlight.isSelected = settings.enableScopeHighlight
         cbLargeFileLimit.isSelected = settings.enableLargeFileLimit
         spMaxFileSizeKb.value = settings.maxFileSizeKb
@@ -180,6 +198,7 @@ class ColorBracketsConfigurable : Configurable {
         cbSquareBrackets.isEnabled = enabled
         cbCurlyBrackets.isEnabled = enabled
         cbAngleBrackets.isEnabled = enabled
+        cbAngleBracketMode.isEnabled = enabled && cbAngleBrackets.isSelected
         cbScopeHighlight.isEnabled = enabled
         cbColorPalette.isEnabled = enabled
         cbBoldBrackets.isEnabled = enabled
@@ -205,6 +224,10 @@ class ColorBracketsConfigurable : Configurable {
 
     private fun selectedColorPalette(): String {
         return cbColorPalette.selectedItem as? String ?: ColorBracketsSettings.COLOR_PALETTE_DEFAULT
+    }
+
+    private fun selectedAngleBracketMode(): String {
+        return cbAngleBracketMode.selectedItem as? String ?: ColorBracketsSettings.ANGLE_BRACKET_AUTO
     }
 
     private fun selectedLanguageFilterMode(): String {
