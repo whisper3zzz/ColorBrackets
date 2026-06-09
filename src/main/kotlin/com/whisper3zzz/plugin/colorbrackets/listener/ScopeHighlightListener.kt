@@ -13,13 +13,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
-import com.intellij.psi.util.CachedValueProvider
-import com.intellij.psi.util.CachedValuesManager
-import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.Alarm
 import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
+import com.whisper3zzz.plugin.colorbrackets.util.BracketDepthCache
 import com.whisper3zzz.plugin.colorbrackets.util.BracketKind
 import com.whisper3zzz.plugin.colorbrackets.util.BracketSupport
 import java.awt.Color
@@ -126,75 +122,19 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
         if (textLength == 0) return
 
         val offset = editor.caretModel.offset.coerceAtMost(textLength - 1)
-        val element = psiFile.findElementAt(offset) ?: return
-        val container = findContainer(element) ?: return
+        val pair = BracketDepthCache.findContainingPair(psiFile, offset, BracketKind.CURLY) ?: return
 
-        val range = container.textRange
         val highlighter = editor.markupModel.addRangeHighlighter(
-            range.startOffset, range.endOffset,
+            pair.openingOffset,
+            (pair.closingOffset + 1).coerceAtMost(textLength),
             HighlighterLayer.SELECTION - 1,
             null,
             HighlighterTargetArea.EXACT_RANGE
         )
 
-        val depth = getDepth(container)
-        val color = BracketSupport.colorFor(BracketKind.CURLY, depth)
+        val color = BracketSupport.colorFor(BracketKind.CURLY, pair.level)
         highlighter.customRenderer = ScopeLineRenderer(color)
         highlighters[editor] = highlighter
-    }
-
-    private fun findContainer(element: PsiElement): PsiElement? {
-        var current = element.parent
-        while (current != null && current !is PsiFile) {
-            if (isBlock(current)) return current
-            current = current.parent
-        }
-        return null
-    }
-
-    private fun getDepth(element: PsiElement): Int {
-        var depth = 0
-        var current = element.parent
-        while (current != null && current !is PsiFile) {
-            if (isBlock(current)) depth++
-            current = current.parent
-        }
-        return depth
-    }
-
-    private fun isBlock(element: PsiElement): Boolean {
-        return CachedValuesManager.getCachedValue(element) {
-            CachedValueProvider.Result.create(
-                computeIsBlock(element),
-                PsiModificationTracker.MODIFICATION_COUNT
-            )
-        }
-    }
-
-    private fun computeIsBlock(element: PsiElement): Boolean {
-        val maxScan = 50
-        var hasOpen = false
-
-        var scanner = element.firstChild
-        var count = 0
-        while (scanner != null && count < maxScan) {
-            if (scanner.textLength == 1 && scanner.text == BracketKind.CURLY.opening) {
-                hasOpen = true
-                break
-            }
-            scanner = scanner.nextSibling
-            count++
-        }
-        if (!hasOpen) return false
-
-        scanner = element.lastChild
-        count = 0
-        while (scanner != null && count < maxScan) {
-            if (scanner.textLength == 1 && scanner.text == BracketKind.CURLY.closing) return true
-            scanner = scanner.prevSibling
-            count++
-        }
-        return false
     }
 }
 

@@ -13,9 +13,22 @@ object BracketDepthCache {
         val level: Int
     )
 
+    data class BracketPair(
+        val kind: BracketKind,
+        val openingOffset: Int,
+        val closingOffset: Int,
+        val level: Int
+    )
+
     private data class OpenBracket(
         val kind: BracketKind,
-        val level: Int
+        val level: Int,
+        val offset: Int
+    )
+
+    private data class Cache(
+        val entries: Map<Int, Entry>,
+        val pairs: List<BracketPair>
     )
 
     internal data class ScanToken(
@@ -40,6 +53,14 @@ object BracketDepthCache {
     )
 
     fun get(file: PsiFile): Map<Int, Entry> {
+        return cache(file).entries
+    }
+
+    fun findContainingPair(file: PsiFile, offset: Int, kind: BracketKind): BracketPair? {
+        return findContainingPair(cache(file).pairs, offset, kind)
+    }
+
+    private fun cache(file: PsiFile): Cache {
         return CachedValuesManager.getCachedValue(file) {
             CachedValueProvider.Result.create(
                 build(file),
@@ -53,7 +74,7 @@ object BracketDepthCache {
         return get(file)[element.textRange.startOffset]
     }
 
-    private fun build(file: PsiFile): Map<Int, Entry> {
+    private fun build(file: PsiFile): Cache {
         val tokens = ArrayList<ScanToken>()
         forEachLeaf(file) { leaf ->
             if (leaf.textLength != 1 || shouldSkipContext(leaf)) return@forEachLeaf
@@ -65,11 +86,35 @@ object BracketDepthCache {
             tokens.add(ScanToken(symbol, leaf.textRange.startOffset))
         }
 
-        return buildEntries(tokens.asSequence())
+        return buildCache(tokens.asSequence())
     }
 
     internal fun buildEntries(tokens: Sequence<ScanToken>): Map<Int, Entry> {
+        return buildCache(tokens).entries
+    }
+
+    internal fun buildPairs(tokens: Sequence<ScanToken>): List<BracketPair> {
+        return buildCache(tokens).pairs
+    }
+
+    internal fun findContainingPair(
+        pairs: List<BracketPair>,
+        offset: Int,
+        kind: BracketKind
+    ): BracketPair? {
+        return pairs
+            .asSequence()
+            .filter { pair ->
+                pair.kind == kind &&
+                    pair.openingOffset <= offset &&
+                    offset <= pair.closingOffset
+            }
+            .maxWithOrNull(compareBy<BracketPair> { it.level }.thenBy { it.openingOffset })
+    }
+
+    private fun buildCache(tokens: Sequence<ScanToken>): Cache {
         val entries = HashMap<Int, Entry>()
+        val pairs = ArrayList<BracketPair>()
         val stack = ArrayList<OpenBracket>()
 
         tokens.forEach { token ->
@@ -77,25 +122,36 @@ object BracketDepthCache {
             if (BracketSupport.isOpeningBracket(token.symbol)) {
                 val level = stack.size
                 entries[token.offset] = Entry(kind, level)
-                stack.add(OpenBracket(kind, level))
+                stack.add(OpenBracket(kind, level, token.offset))
             } else {
-                val level = popMatchingLevel(stack, kind)
+                val open = popMatchingOpen(stack, kind)
+                val level = open?.level ?: stack.size
                 entries[token.offset] = Entry(kind, level)
+                if (open != null) {
+                    pairs.add(
+                        BracketPair(
+                            kind = kind,
+                            openingOffset = open.offset,
+                            closingOffset = token.offset,
+                            level = level
+                        )
+                    )
+                }
             }
         }
 
-        return entries
+        return Cache(entries, pairs)
     }
 
-    private fun popMatchingLevel(stack: MutableList<OpenBracket>, kind: BracketKind): Int {
+    private fun popMatchingOpen(stack: MutableList<OpenBracket>, kind: BracketKind): OpenBracket? {
         val matchIndex = stack.indexOfLast { it.kind == kind }
-        if (matchIndex < 0) return stack.size
+        if (matchIndex < 0) return null
 
-        val level = stack[matchIndex].level
+        val open = stack[matchIndex]
         while (stack.size > matchIndex) {
             stack.removeAt(stack.lastIndex)
         }
-        return level
+        return open
     }
 
     private fun forEachLeaf(root: PsiElement, consumer: (PsiElement) -> Unit) {
