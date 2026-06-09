@@ -20,6 +20,9 @@ repositories {
 // Configure IntelliJ Platform Gradle Plugin
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
+    testImplementation(kotlin("test-junit5"))
+    testRuntimeOnly("junit:junit:4.13.2")
+
     intellijPlatform {
         create(platformType.get(), platformVersion.get())
 
@@ -47,6 +50,10 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "21"
         targetCompatibility = "21"
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }
 
