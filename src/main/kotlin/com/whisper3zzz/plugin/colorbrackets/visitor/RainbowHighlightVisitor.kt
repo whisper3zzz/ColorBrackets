@@ -12,6 +12,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
+import com.whisper3zzz.plugin.colorbrackets.util.BracketDepthCache
 import com.whisper3zzz.plugin.colorbrackets.util.BracketSupport
 import java.awt.Color
 import java.awt.Font
@@ -55,17 +56,15 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
     override fun visit(element: PsiElement) {
         // Only process leaf elements with single character
         if (element !is LeafPsiElement || element.textLength != 1) return
-        
-        val text = element.text
+
         val settings = ColorBracketsSettings.instance
 
-        val kind = BracketSupport.kindOf(text) ?: return
+        val bracket = BracketDepthCache.get(element) ?: return
 
         // Check per-bracket-type settings
-        if (!BracketSupport.isEnabled(kind, settings)) return
+        if (!BracketSupport.isEnabled(bracket.kind, settings)) return
 
-        val level = getLevel(element)
-        val color = BracketSupport.colorFor(kind, level)
+        val color = BracketSupport.colorFor(bracket.kind, bracket.level)
         val attributes = getAttributes(color)
 
         addHighlight(element, attributes)
@@ -88,41 +87,5 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         return attributeCache.computeIfAbsent(color) {
             TextAttributes(color, null, null, null, Font.PLAIN)
         }
-    }
-
-    private fun getLevel(element: PsiElement): Int {
-        var level = 0
-        var current = element.parent
-        
-        val maxDepth = 20
-        while (current != null && current !is PsiFile && level < maxDepth) {
-            if (hasBrackets(current)) {
-                level++
-            }
-            current = current.parent
-        }
-        return (level - 1).coerceAtLeast(0)
-    }
-
-    private fun hasBrackets(element: PsiElement): Boolean {
-        val maxScan = 100
-        
-        var child = element.firstChild
-        var count = 0
-        while (child != null && count < maxScan) {
-            if (BracketSupport.isOpeningBracket(child.text)) return true
-            child = child.nextSibling
-            count++
-        }
-        
-        child = element.lastChild
-        count = 0
-        while (child != null && count < maxScan) {
-            if (BracketSupport.isClosingBracket(child.text)) return true
-            child = child.prevSibling
-            count++
-        }
-        
-        return false
     }
 }
