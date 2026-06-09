@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.whisper3zzz.plugin"
-version = "1.4.0"
+version = "1.4.1"
 
 val platformType = providers.gradleProperty("platformType").orElse("IC")
 val platformVersion = providers.gradleProperty("platformVersion").orElse("2025.1.4.1")
@@ -40,9 +40,9 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Adds file-level bracket depth caching, safer angle bracket detection,
-            scope highlight reuse of bracket pairs, plugin verification checks,
-            and configurable large file protection.
+            Fixes C++ template angle bracket highlighting in CLion and adds
+            configurable angle bracket strategy, color palettes, bracket bold
+            style, scope line width/opacity, and language filtering settings.
         """.trimIndent()
     }
 }
