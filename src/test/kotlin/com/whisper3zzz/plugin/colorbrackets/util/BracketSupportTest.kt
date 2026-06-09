@@ -88,4 +88,34 @@ class BracketSupportTest {
 
         assertFalse(BracketSupport.shouldProcessFile("TEXT", 1, settings))
     }
+
+    @Test
+    fun `language filter can allow only configured languages`() {
+        val settings = ColorBracketsSettings()
+        settings.languageFilterMode = ColorBracketsSettings.LANGUAGE_FILTER_ONLY
+        settings.languageFilterList = "JAVA, kotlin; C++"
+
+        assertTrue(BracketSupport.shouldProcessFile("JAVA", 1, settings))
+        assertTrue(BracketSupport.shouldProcessFile("KOTLIN", 1, settings))
+        assertTrue(BracketSupport.shouldProcessFile("c++", 1, settings))
+        assertFalse(BracketSupport.shouldProcessFile("Python", 1, settings))
+    }
+
+    @Test
+    fun `language filter can exclude configured languages`() {
+        val settings = ColorBracketsSettings()
+        settings.languageFilterMode = ColorBracketsSettings.LANGUAGE_FILTER_EXCEPT
+        settings.languageFilterList = "Markdown, Python"
+
+        assertFalse(BracketSupport.shouldProcessFile("Python", 1, settings))
+        assertTrue(BracketSupport.shouldProcessFile("JAVA", 1, settings))
+    }
+
+    @Test
+    fun `parses comma semicolon and newline separated language ids`() {
+        assertEquals(
+            setOf("JAVA", "KOTLIN", "C++"),
+            BracketSupport.parseLanguageFilter("java, kotlin\nC++")
+        )
+    }
 }

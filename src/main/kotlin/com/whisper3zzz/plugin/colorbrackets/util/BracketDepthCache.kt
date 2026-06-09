@@ -48,6 +48,10 @@ object BracketDepthCache {
         "TYPE_PARAMETER",
         "TYPE_ARGUMENT",
         "REFERENCE_PARAMETER",
+        "TEMPLATE_PARAMETER",
+        "TEMPLATE_ARGUMENT",
+        "TEMPLATE_ID",
+        "CPP_TEMPLATE",
         "TEMPLATE",
         "GENERIC"
     )

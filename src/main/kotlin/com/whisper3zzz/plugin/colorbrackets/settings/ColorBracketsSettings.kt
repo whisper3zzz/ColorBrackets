@@ -19,7 +19,13 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
         var enableAngleBrackets: Boolean = true,
         var enableScopeHighlight: Boolean = true,
         var enableLargeFileLimit: Boolean = true,
-        var maxFileSizeKb: Int = DEFAULT_MAX_FILE_SIZE_KB
+        var maxFileSizeKb: Int = DEFAULT_MAX_FILE_SIZE_KB,
+        var colorPalette: String = COLOR_PALETTE_DEFAULT,
+        var boldBrackets: Boolean = false,
+        var scopeLineWidth: Int = DEFAULT_SCOPE_LINE_WIDTH,
+        var scopeLineOpacity: Int = DEFAULT_SCOPE_LINE_OPACITY,
+        var languageFilterMode: String = LANGUAGE_FILTER_ALL,
+        var languageFilterList: String = ""
     )
 
     private var state = State()
@@ -62,10 +68,54 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
         get() = state.maxFileSizeKb
         set(value) { state.maxFileSizeKb = value.coerceIn(MIN_FILE_SIZE_KB, MAX_FILE_SIZE_KB) }
 
+    var colorPalette: String
+        get() = state.colorPalette
+        set(value) {
+            state.colorPalette = if (value in COLOR_PALETTES) value else COLOR_PALETTE_DEFAULT
+        }
+
+    var boldBrackets: Boolean
+        get() = state.boldBrackets
+        set(value) { state.boldBrackets = value }
+
+    var scopeLineWidth: Int
+        get() = state.scopeLineWidth
+        set(value) { state.scopeLineWidth = value.coerceIn(MIN_SCOPE_LINE_WIDTH, MAX_SCOPE_LINE_WIDTH) }
+
+    var scopeLineOpacity: Int
+        get() = state.scopeLineOpacity
+        set(value) { state.scopeLineOpacity = value.coerceIn(MIN_SCOPE_LINE_OPACITY, MAX_SCOPE_LINE_OPACITY) }
+
+    var languageFilterMode: String
+        get() = state.languageFilterMode
+        set(value) {
+            state.languageFilterMode = if (value in LANGUAGE_FILTER_MODES) value else LANGUAGE_FILTER_ALL
+        }
+
+    var languageFilterList: String
+        get() = state.languageFilterList
+        set(value) { state.languageFilterList = value }
+
     companion object {
         const val DEFAULT_MAX_FILE_SIZE_KB = 1024
         const val MIN_FILE_SIZE_KB = 64
         const val MAX_FILE_SIZE_KB = 102400
+        const val DEFAULT_SCOPE_LINE_WIDTH = 1
+        const val MIN_SCOPE_LINE_WIDTH = 1
+        const val MAX_SCOPE_LINE_WIDTH = 8
+        const val DEFAULT_SCOPE_LINE_OPACITY = 100
+        const val MIN_SCOPE_LINE_OPACITY = 10
+        const val MAX_SCOPE_LINE_OPACITY = 100
+
+        const val COLOR_PALETTE_DEFAULT = "DEFAULT"
+        const val COLOR_PALETTE_VIVID = "VIVID"
+        const val COLOR_PALETTE_SOFT = "SOFT"
+        val COLOR_PALETTES = setOf(COLOR_PALETTE_DEFAULT, COLOR_PALETTE_VIVID, COLOR_PALETTE_SOFT)
+
+        const val LANGUAGE_FILTER_ALL = "ALL"
+        const val LANGUAGE_FILTER_ONLY = "ONLY"
+        const val LANGUAGE_FILTER_EXCEPT = "EXCEPT"
+        val LANGUAGE_FILTER_MODES = setOf(LANGUAGE_FILTER_ALL, LANGUAGE_FILTER_ONLY, LANGUAGE_FILTER_EXCEPT)
 
         val instance: ColorBracketsSettings
             get() = ApplicationManager.getApplication().getService(ColorBracketsSettings::class.java)

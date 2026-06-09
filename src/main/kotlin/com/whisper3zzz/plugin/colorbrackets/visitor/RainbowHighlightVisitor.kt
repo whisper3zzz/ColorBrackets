@@ -10,7 +10,6 @@ import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.project.DumbAware
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
 import com.whisper3zzz.plugin.colorbrackets.util.BracketDepthCache
 import com.whisper3zzz.plugin.colorbrackets.util.BracketSupport
@@ -21,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
 class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
 
     // Cache TextAttributes to reduce object allocation
-    private val attributeCache = ConcurrentHashMap<Color, TextAttributes>()
+    private val attributeCache = ConcurrentHashMap<AttributeKey, TextAttributes>()
     
     private var highlightInfoHolder: HighlightInfoHolder? = null
     
@@ -55,7 +54,7 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
 
     override fun visit(element: PsiElement) {
         // Only process leaf elements with single character
-        if (element !is LeafPsiElement || element.textLength != 1) return
+        if (element.firstChild != null || element.textLength != 1) return
 
         val settings = ColorBracketsSettings.instance
 
@@ -64,8 +63,8 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         // Check per-bracket-type settings
         if (!BracketSupport.isEnabled(bracket.kind, settings)) return
 
-        val color = BracketSupport.colorFor(bracket.kind, bracket.level)
-        val attributes = getAttributes(color)
+        val color = BracketSupport.colorFor(bracket.kind, bracket.level, settings)
+        val attributes = getAttributes(color, settings.boldBrackets)
 
         addHighlight(element, attributes)
     }
@@ -83,9 +82,15 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
 
     override fun clone(): HighlightVisitor = RainbowHighlightVisitor()
 
-    private fun getAttributes(color: Color): TextAttributes {
-        return attributeCache.computeIfAbsent(color) {
-            TextAttributes(color, null, null, null, Font.PLAIN)
+    private fun getAttributes(color: Color, bold: Boolean): TextAttributes {
+        return attributeCache.computeIfAbsent(AttributeKey(color, bold)) {
+            val fontType = if (bold) Font.BOLD else Font.PLAIN
+            TextAttributes(color, null, null, null, fontType)
         }
     }
+
+    private data class AttributeKey(
+        val color: Color,
+        val bold: Boolean
+    )
 }

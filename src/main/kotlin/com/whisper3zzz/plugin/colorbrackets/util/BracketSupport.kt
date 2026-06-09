@@ -36,10 +36,30 @@ object BracketSupport {
 
     fun shouldProcessFile(language: String, textLength: Int, settings: ColorBracketsSettings): Boolean {
         if (isExcludedLanguage(language)) return false
+        if (!isLanguageAllowed(language, settings)) return false
         if (!settings.enableLargeFileLimit) return true
 
         val maxBytes = settings.maxFileSizeKb * 1024
         return textLength <= maxBytes
+    }
+
+    fun isLanguageAllowed(language: String, settings: ColorBracketsSettings): Boolean {
+        val normalizedLanguage = language.trim().uppercase()
+        val configuredLanguages = parseLanguageFilter(settings.languageFilterList)
+
+        return when (settings.languageFilterMode) {
+            ColorBracketsSettings.LANGUAGE_FILTER_ONLY -> normalizedLanguage in configuredLanguages
+            ColorBracketsSettings.LANGUAGE_FILTER_EXCEPT -> normalizedLanguage !in configuredLanguages
+            else -> true
+        }
+    }
+
+    internal fun parseLanguageFilter(value: String): Set<String> {
+        return value
+            .split(',', ';', '\n')
+            .map { it.trim().uppercase() }
+            .filter { it.isNotEmpty() }
+            .toSet()
     }
 
     fun isEnabled(kind: BracketKind, settings: ColorBracketsSettings): Boolean {
@@ -51,13 +71,13 @@ object BracketSupport {
         }
     }
 
-    fun colorFor(kind: BracketKind, level: Int): Color {
+    fun colorFor(kind: BracketKind, level: Int, settings: ColorBracketsSettings? = null): Color {
         val palette = when (kind) {
             BracketKind.ROUND -> RainbowColors.ROUND_BRACKETS
             BracketKind.SQUARE -> RainbowColors.SQUARE_BRACKETS
             BracketKind.CURLY -> RainbowColors.CURLY_BRACKETS
             BracketKind.ANGLE -> RainbowColors.ANGLE_BRACKETS
         }
-        return RainbowColors.getColor(level, palette)
+        return RainbowColors.getColor(level, palette, settings?.colorPalette)
     }
 }

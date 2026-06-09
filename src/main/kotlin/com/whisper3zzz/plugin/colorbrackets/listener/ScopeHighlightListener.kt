@@ -19,7 +19,10 @@ import com.whisper3zzz.plugin.colorbrackets.util.BracketDepthCache
 import com.whisper3zzz.plugin.colorbrackets.util.BracketKind
 import com.whisper3zzz.plugin.colorbrackets.util.BracketSupport
 import java.awt.Color
+import java.awt.AlphaComposite
+import java.awt.BasicStroke
 import java.awt.Graphics
+import java.awt.Graphics2D
 import java.util.WeakHashMap
 
 class ScopeHighlightActivity : ProjectActivity {
@@ -132,13 +135,21 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
             HighlighterTargetArea.EXACT_RANGE
         )
 
-        val color = BracketSupport.colorFor(BracketKind.CURLY, pair.level)
-        highlighter.customRenderer = ScopeLineRenderer(color)
+        val color = BracketSupport.colorFor(BracketKind.CURLY, pair.level, settings)
+        highlighter.customRenderer = ScopeLineRenderer(
+            color = color,
+            width = settings.scopeLineWidth,
+            opacity = settings.scopeLineOpacity
+        )
         highlighters[editor] = highlighter
     }
 }
 
-class ScopeLineRenderer(private val color: Color) : CustomHighlighterRenderer {
+class ScopeLineRenderer(
+    private val color: Color,
+    private val width: Int = ColorBracketsSettings.DEFAULT_SCOPE_LINE_WIDTH,
+    private val opacity: Int = ColorBracketsSettings.DEFAULT_SCOPE_LINE_OPACITY
+) : CustomHighlighterRenderer {
     override fun paint(editor: Editor, highlighter: RangeHighlighterModel, g: Graphics) {
         val startOffset = highlighter.startOffset
         val endOffset = highlighter.endOffset
@@ -160,10 +171,28 @@ class ScopeLineRenderer(private val color: Color) : CustomHighlighterRenderer {
             editor.offsetToVisualPosition(doc.getLineStartOffset(endLine))
         ).y
 
-        val oldColor = g.color
-        g.color = color
-        g.drawLine(x, topY, x, bottomY)
-        g.color = oldColor
+        val g2 = g as? Graphics2D
+        if (g2 == null) {
+            val oldColor = g.color
+            g.color = color
+            g.drawLine(x, topY, x, bottomY)
+            g.color = oldColor
+            return
+        }
+
+        val oldColor = g2.color
+        val oldStroke = g2.stroke
+        val oldComposite = g2.composite
+        g2.color = color
+        g2.stroke = BasicStroke(width.toFloat().coerceAtLeast(1f))
+        g2.composite = AlphaComposite.getInstance(
+            AlphaComposite.SRC_OVER,
+            opacity.coerceIn(0, 100) / 100f
+        )
+        g2.drawLine(x, topY, x, bottomY)
+        g2.composite = oldComposite
+        g2.stroke = oldStroke
+        g2.color = oldColor
     }
 
     private fun getLineIndentX(editor: Editor, line: Int): Int {

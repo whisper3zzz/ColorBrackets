@@ -4,10 +4,12 @@ import com.intellij.openapi.options.Configurable
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.JBUI
+import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JSpinner
+import javax.swing.JTextField
 import javax.swing.SpinnerNumberModel
 
 class ColorBracketsConfigurable : Configurable {
@@ -20,6 +22,30 @@ class ColorBracketsConfigurable : Configurable {
     private val cbCurlyBrackets = JBCheckBox("彩色大括号 { }")
     private val cbAngleBrackets = JBCheckBox("彩色尖括号 < >")
     private val cbScopeHighlight = JBCheckBox("启用代码块竖线高亮")
+    private val cbBoldBrackets = JBCheckBox("括号加粗")
+    private val cbColorPalette = JComboBox(
+        arrayOf(
+            ColorBracketsSettings.COLOR_PALETTE_DEFAULT,
+            ColorBracketsSettings.COLOR_PALETTE_VIVID,
+            ColorBracketsSettings.COLOR_PALETTE_SOFT
+        )
+    )
+    private val spScopeLineWidth = JSpinner(
+        SpinnerNumberModel(
+            ColorBracketsSettings.DEFAULT_SCOPE_LINE_WIDTH,
+            ColorBracketsSettings.MIN_SCOPE_LINE_WIDTH,
+            ColorBracketsSettings.MAX_SCOPE_LINE_WIDTH,
+            1
+        )
+    )
+    private val spScopeLineOpacity = JSpinner(
+        SpinnerNumberModel(
+            ColorBracketsSettings.DEFAULT_SCOPE_LINE_OPACITY,
+            ColorBracketsSettings.MIN_SCOPE_LINE_OPACITY,
+            ColorBracketsSettings.MAX_SCOPE_LINE_OPACITY,
+            5
+        )
+    )
     private val cbLargeFileLimit = JBCheckBox("启用大文件保护")
     private val spMaxFileSizeKb = JSpinner(
         SpinnerNumberModel(
@@ -29,6 +55,14 @@ class ColorBracketsConfigurable : Configurable {
             64
         )
     )
+    private val cbLanguageFilterMode = JComboBox(
+        arrayOf(
+            ColorBracketsSettings.LANGUAGE_FILTER_ALL,
+            ColorBracketsSettings.LANGUAGE_FILTER_ONLY,
+            ColorBracketsSettings.LANGUAGE_FILTER_EXCEPT
+        )
+    )
+    private val tfLanguageFilterList = JTextField()
 
     override fun getDisplayName(): String = "ColorBrackets"
 
@@ -38,6 +72,12 @@ class ColorBracketsConfigurable : Configurable {
             syncControlEnabledState()
         }
         cbLargeFileLimit.addChangeListener {
+            syncControlEnabledState()
+        }
+        cbScopeHighlight.addChangeListener {
+            syncControlEnabledState()
+        }
+        cbLanguageFilterMode.addActionListener {
             syncControlEnabledState()
         }
 
@@ -51,17 +91,27 @@ class ColorBracketsConfigurable : Configurable {
             .addComponent(cbSquareBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addComponent(cbCurlyBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addComponent(cbAngleBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
+            .addLabeledComponent("颜色方案", cbColorPalette)
+            .addComponent(cbBoldBrackets.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addVerticalGap(8)
             .addComponent(JLabel("作用域高亮").also {
                 it.border = JBUI.Borders.emptyLeft(20)
             })
             .addComponent(cbScopeHighlight.also { it.border = JBUI.Borders.emptyLeft(40) })
+            .addLabeledComponent("竖线宽度", spScopeLineWidth)
+            .addLabeledComponent("竖线透明度 (%)", spScopeLineOpacity)
             .addVerticalGap(8)
             .addComponent(JLabel("性能").also {
                 it.border = JBUI.Borders.emptyLeft(20)
             })
             .addComponent(cbLargeFileLimit.also { it.border = JBUI.Borders.emptyLeft(40) })
             .addLabeledComponent("最大文件大小 (KB)", spMaxFileSizeKb)
+            .addVerticalGap(8)
+            .addComponent(JLabel("语言过滤").also {
+                it.border = JBUI.Borders.emptyLeft(20)
+            })
+            .addLabeledComponent("过滤模式", cbLanguageFilterMode)
+            .addLabeledComponent("语言 ID 列表", tfLanguageFilterList)
             .addComponentFillVertically(JPanel(), 0)
             .panel
 
@@ -77,7 +127,13 @@ class ColorBracketsConfigurable : Configurable {
                 cbAngleBrackets.isSelected != settings.enableAngleBrackets ||
                 cbScopeHighlight.isSelected != settings.enableScopeHighlight ||
                 cbLargeFileLimit.isSelected != settings.enableLargeFileLimit ||
-                maxFileSizeKbValue() != settings.maxFileSizeKb
+                maxFileSizeKbValue() != settings.maxFileSizeKb ||
+                selectedColorPalette() != settings.colorPalette ||
+                cbBoldBrackets.isSelected != settings.boldBrackets ||
+                scopeLineWidthValue() != settings.scopeLineWidth ||
+                scopeLineOpacityValue() != settings.scopeLineOpacity ||
+                selectedLanguageFilterMode() != settings.languageFilterMode ||
+                tfLanguageFilterList.text != settings.languageFilterList
     }
 
     override fun apply() {
@@ -90,6 +146,12 @@ class ColorBracketsConfigurable : Configurable {
         settings.enableScopeHighlight = cbScopeHighlight.isSelected
         settings.enableLargeFileLimit = cbLargeFileLimit.isSelected
         settings.maxFileSizeKb = maxFileSizeKbValue()
+        settings.colorPalette = selectedColorPalette()
+        settings.boldBrackets = cbBoldBrackets.isSelected
+        settings.scopeLineWidth = scopeLineWidthValue()
+        settings.scopeLineOpacity = scopeLineOpacityValue()
+        settings.languageFilterMode = selectedLanguageFilterMode()
+        settings.languageFilterList = tfLanguageFilterList.text
     }
 
     override fun reset() {
@@ -102,6 +164,12 @@ class ColorBracketsConfigurable : Configurable {
         cbScopeHighlight.isSelected = settings.enableScopeHighlight
         cbLargeFileLimit.isSelected = settings.enableLargeFileLimit
         spMaxFileSizeKb.value = settings.maxFileSizeKb
+        cbColorPalette.selectedItem = settings.colorPalette
+        cbBoldBrackets.isSelected = settings.boldBrackets
+        spScopeLineWidth.value = settings.scopeLineWidth
+        spScopeLineOpacity.value = settings.scopeLineOpacity
+        cbLanguageFilterMode.selectedItem = settings.languageFilterMode
+        tfLanguageFilterList.text = settings.languageFilterList
 
         syncControlEnabledState()
     }
@@ -113,11 +181,33 @@ class ColorBracketsConfigurable : Configurable {
         cbCurlyBrackets.isEnabled = enabled
         cbAngleBrackets.isEnabled = enabled
         cbScopeHighlight.isEnabled = enabled
+        cbColorPalette.isEnabled = enabled
+        cbBoldBrackets.isEnabled = enabled
+        spScopeLineWidth.isEnabled = enabled && cbScopeHighlight.isSelected
+        spScopeLineOpacity.isEnabled = enabled && cbScopeHighlight.isSelected
         cbLargeFileLimit.isEnabled = enabled
         spMaxFileSizeKb.isEnabled = enabled && cbLargeFileLimit.isSelected
+        cbLanguageFilterMode.isEnabled = enabled
+        tfLanguageFilterList.isEnabled = enabled && selectedLanguageFilterMode() != ColorBracketsSettings.LANGUAGE_FILTER_ALL
     }
 
     private fun maxFileSizeKbValue(): Int {
         return (spMaxFileSizeKb.value as Number).toInt()
+    }
+
+    private fun scopeLineWidthValue(): Int {
+        return (spScopeLineWidth.value as Number).toInt()
+    }
+
+    private fun scopeLineOpacityValue(): Int {
+        return (spScopeLineOpacity.value as Number).toInt()
+    }
+
+    private fun selectedColorPalette(): String {
+        return cbColorPalette.selectedItem as? String ?: ColorBracketsSettings.COLOR_PALETTE_DEFAULT
+    }
+
+    private fun selectedLanguageFilterMode(): String {
+        return cbLanguageFilterMode.selectedItem as? String ?: ColorBracketsSettings.LANGUAGE_FILTER_ALL
     }
 }

@@ -95,6 +95,16 @@ class BracketDepthCacheTest {
                 sequenceOf("LT", "TEMPLATE_ARGUMENT_LIST", "TEMPLATE_DECLARATION")
             )
         )
+        assertTrue(
+            BracketDepthCache.acceptsAngleBracketContext(
+                sequenceOf("LT", "CPP_TEMPLATE_ID", "CPP_TEMPLATE_DECLARATION")
+            )
+        )
+        assertTrue(
+            BracketDepthCache.acceptsAngleBracketContext(
+                sequenceOf("GT", "TEMPLATE_PARAMETER_LIST", "CPP_CLASS")
+            )
+        )
     }
 
     @Test
