@@ -12,16 +12,13 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
-import com.whisper3zzz.plugin.colorbrackets.util.RainbowColors
+import com.whisper3zzz.plugin.colorbrackets.util.BracketSupport
 import java.awt.Color
 import java.awt.Font
 import java.util.concurrent.ConcurrentHashMap
 
 class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
-    
-    private val openingBrackets = setOf("(", "[", "{", "<")
-    private val closingBrackets = setOf(")", "]", "}", ">")
-    
+
     // Cache TextAttributes to reduce object allocation
     private val attributeCache = ConcurrentHashMap<Color, TextAttributes>()
     
@@ -37,7 +34,7 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         if (!settings.isEnabled) return false
         // Only process code files, not plain text or documents
         val language = file.language.id
-        return !isExcludedLanguage(language)
+        return !BracketSupport.isExcludedLanguage(language)
     }
 
     override fun analyze(
@@ -61,23 +58,14 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         
         val text = element.text
         val settings = ColorBracketsSettings.instance
-        
-        val isOpening = openingBrackets.contains(text)
-        val isClosing = closingBrackets.contains(text)
-        if (!isOpening && !isClosing) return
+
+        val kind = BracketSupport.kindOf(text) ?: return
 
         // Check per-bracket-type settings
-        val enabled = when (text) {
-            "(", ")" -> settings.enableRoundBrackets
-            "[", "]" -> settings.enableSquareBrackets
-            "{", "}" -> settings.enableCurlyBrackets
-            "<", ">" -> settings.enableAngleBrackets
-            else -> false
-        }
-        if (!enabled) return
+        if (!BracketSupport.isEnabled(kind, settings)) return
 
         val level = getLevel(element)
-        val color = getColorForBracket(text, level)
+        val color = BracketSupport.colorFor(kind, level)
         val attributes = getAttributes(color)
 
         addHighlight(element, attributes)
@@ -122,7 +110,7 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         var child = element.firstChild
         var count = 0
         while (child != null && count < maxScan) {
-            if (openingBrackets.contains(child.text)) return true
+            if (BracketSupport.isOpeningBracket(child.text)) return true
             child = child.nextSibling
             count++
         }
@@ -130,33 +118,11 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         child = element.lastChild
         count = 0
         while (child != null && count < maxScan) {
-            if (closingBrackets.contains(child.text)) return true
+            if (BracketSupport.isClosingBracket(child.text)) return true
             child = child.prevSibling
             count++
         }
         
         return false
-    }
-
-    private fun getColorForBracket(text: String, level: Int): Color {
-        return when (text) {
-            "(", ")" -> RainbowColors.getColor(level, RainbowColors.ROUND_BRACKETS)
-            "[", "]" -> RainbowColors.getColor(level, RainbowColors.SQUARE_BRACKETS)
-            "{", "}" -> RainbowColors.getColor(level, RainbowColors.CURLY_BRACKETS)
-            "<", ">" -> RainbowColors.getColor(level, RainbowColors.ANGLE_BRACKETS)
-            else -> RainbowColors.getColor(level, RainbowColors.ROUND_BRACKETS)
-        }
-    }
-
-    private fun isExcludedLanguage(language: String): Boolean {
-        // Exclude plain text and document file types (not code)
-        return excludedLanguages.contains(language)
-    }
-
-    companion object {
-        private val excludedLanguages = setOf(
-            "TEXT", "PLAIN_TEXT", "Markdown", "Properties", "Shell Script",
-            "Batch", "Git file", "Log", "AsciiDoc", "reStructuredText"
-        )
     }
 }

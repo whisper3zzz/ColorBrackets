@@ -7,6 +7,9 @@ plugins {
 group = "com.whisper3zzz.plugin"
 version = "1.3.0"
 
+val platformType = providers.gradleProperty("platformType").orElse("IC")
+val platformVersion = providers.gradleProperty("platformVersion").orElse("2025.1.4.1")
+
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -18,16 +21,7 @@ repositories {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
-        // === 默认配置：启动 IntelliJ IDEA Community (测试 Java/Kotlin) ===
-        //create("IC", "2025.1.4.1")
-
-        // === 测试 C++ 支持：启动 CLion ===
-        // 请注释掉上面的 create("IC", ...) 并取消下面这行的注释
-        // create("CL", "2024.3")
-
-        // === 测试 C# 支持：启动 Rider ===
-        // 请注释掉上面的 create("IC", ...) 并取消下面这行的注释
-        create("RD", "2025.3")
+        create(platformType.get(), platformVersion.get())
 
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
 
@@ -38,7 +32,7 @@ dependencies {
 
 intellijPlatform {
     pluginConfiguration {
-        ideaVersion {{{{{{{{{{}}}}}}}}}
+        ideaVersion {
             sinceBuild = "251"
         }
 

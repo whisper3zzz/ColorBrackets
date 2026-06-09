@@ -20,7 +20,8 @@ import com.intellij.psi.util.CachedValuesManager
 import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.util.Alarm
 import com.whisper3zzz.plugin.colorbrackets.settings.ColorBracketsSettings
-import com.whisper3zzz.plugin.colorbrackets.util.RainbowColors
+import com.whisper3zzz.plugin.colorbrackets.util.BracketKind
+import com.whisper3zzz.plugin.colorbrackets.util.BracketSupport
 import java.awt.Color
 import java.awt.Graphics
 import java.util.WeakHashMap
@@ -119,9 +120,12 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
 
         // Skip excluded (non-code) languages
         val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(editor.document) ?: return
-        if (isExcludedLanguage(psiFile.language.id)) return
+        if (BracketSupport.isExcludedLanguage(psiFile.language.id)) return
 
-        val offset = editor.caretModel.offset
+        val textLength = editor.document.textLength
+        if (textLength == 0) return
+
+        val offset = editor.caretModel.offset.coerceAtMost(textLength - 1)
         val element = psiFile.findElementAt(offset) ?: return
         val container = findContainer(element) ?: return
 
@@ -134,13 +138,9 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
         )
 
         val depth = getDepth(container)
-        val color = RainbowColors.CURLY_BRACKETS[depth % RainbowColors.CURLY_BRACKETS.size]
+        val color = BracketSupport.colorFor(BracketKind.CURLY, depth)
         highlighter.customRenderer = ScopeLineRenderer(color)
         highlighters[editor] = highlighter
-    }
-
-    private fun isExcludedLanguage(language: String): Boolean {
-        return language in EXCLUDED_LANGUAGES
     }
 
     private fun findContainer(element: PsiElement): PsiElement? {
@@ -178,7 +178,7 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
         var scanner = element.firstChild
         var count = 0
         while (scanner != null && count < maxScan) {
-            if (scanner.textLength == 1 && scanner.text == "{") {
+            if (scanner.textLength == 1 && scanner.text == BracketKind.CURLY.opening) {
                 hasOpen = true
                 break
             }
@@ -190,18 +190,11 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
         scanner = element.lastChild
         count = 0
         while (scanner != null && count < maxScan) {
-            if (scanner.textLength == 1 && scanner.text == "}") return true
+            if (scanner.textLength == 1 && scanner.text == BracketKind.CURLY.closing) return true
             scanner = scanner.prevSibling
             count++
         }
         return false
-    }
-
-    companion object {
-        private val EXCLUDED_LANGUAGES = setOf(
-            "TEXT", "PLAIN_TEXT", "Markdown", "Properties", "Shell Script",
-            "Batch", "Git file", "Log", "AsciiDoc", "reStructuredText"
-        )
     }
 }
 
