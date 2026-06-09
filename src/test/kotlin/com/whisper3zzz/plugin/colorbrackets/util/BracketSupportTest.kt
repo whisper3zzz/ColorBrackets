@@ -61,4 +61,31 @@ class BracketSupportTest {
         assertFalse(BracketSupport.isExcludedLanguage("JAVA"))
         assertFalse(BracketSupport.isExcludedLanguage("kotlin"))
     }
+
+    @Test
+    fun `skips files larger than configured limit`() {
+        val settings = ColorBracketsSettings()
+        settings.enableLargeFileLimit = true
+        settings.maxFileSizeKb = ColorBracketsSettings.MIN_FILE_SIZE_KB
+
+        assertTrue(BracketSupport.shouldProcessFile("JAVA", 64 * 1024, settings))
+        assertFalse(BracketSupport.shouldProcessFile("JAVA", 64 * 1024 + 1, settings))
+    }
+
+    @Test
+    fun `processes large files when limit is disabled`() {
+        val settings = ColorBracketsSettings()
+        settings.enableLargeFileLimit = false
+        settings.maxFileSizeKb = ColorBracketsSettings.MIN_FILE_SIZE_KB
+
+        assertTrue(BracketSupport.shouldProcessFile("JAVA", 64 * 1024 + 1, settings))
+    }
+
+    @Test
+    fun `large file check still excludes non code languages`() {
+        val settings = ColorBracketsSettings()
+        settings.enableLargeFileLimit = false
+
+        assertFalse(BracketSupport.shouldProcessFile("TEXT", 1, settings))
+    }
 }

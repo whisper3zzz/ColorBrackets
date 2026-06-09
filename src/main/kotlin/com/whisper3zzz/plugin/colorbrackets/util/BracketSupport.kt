@@ -34,6 +34,14 @@ object BracketSupport {
 
     fun isExcludedLanguage(language: String): Boolean = language in excludedLanguages
 
+    fun shouldProcessFile(language: String, textLength: Int, settings: ColorBracketsSettings): Boolean {
+        if (isExcludedLanguage(language)) return false
+        if (!settings.enableLargeFileLimit) return true
+
+        val maxBytes = settings.maxFileSizeKb * 1024
+        return textLength <= maxBytes
+    }
+
     fun isEnabled(kind: BracketKind, settings: ColorBracketsSettings): Boolean {
         return when (kind) {
             BracketKind.ROUND -> settings.enableRoundBrackets

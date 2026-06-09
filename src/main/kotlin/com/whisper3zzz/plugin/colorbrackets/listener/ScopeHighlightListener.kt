@@ -116,10 +116,10 @@ class ScopeHighlightManager(private val project: Project) : CaretListener, Dispo
 
         // Skip excluded (non-code) languages
         val psiFile = PsiDocumentManager.getInstance(project).getPsiFile(editor.document) ?: return
-        if (BracketSupport.isExcludedLanguage(psiFile.language.id)) return
 
         val textLength = editor.document.textLength
         if (textLength == 0) return
+        if (!BracketSupport.shouldProcessFile(psiFile.language.id, textLength, settings)) return
 
         val offset = editor.caretModel.offset.coerceAtMost(textLength - 1)
         val pair = BracketDepthCache.findContainingPair(psiFile, offset, BracketKind.CURLY) ?: return

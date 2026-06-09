@@ -17,7 +17,9 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
         var enableSquareBrackets: Boolean = true,
         var enableCurlyBrackets: Boolean = true,
         var enableAngleBrackets: Boolean = true,
-        var enableScopeHighlight: Boolean = true
+        var enableScopeHighlight: Boolean = true,
+        var enableLargeFileLimit: Boolean = true,
+        var maxFileSizeKb: Int = DEFAULT_MAX_FILE_SIZE_KB
     )
 
     private var state = State()
@@ -52,7 +54,19 @@ class ColorBracketsSettings : PersistentStateComponent<ColorBracketsSettings.Sta
         get() = state.enableScopeHighlight
         set(value) { state.enableScopeHighlight = value }
 
+    var enableLargeFileLimit: Boolean
+        get() = state.enableLargeFileLimit
+        set(value) { state.enableLargeFileLimit = value }
+
+    var maxFileSizeKb: Int
+        get() = state.maxFileSizeKb
+        set(value) { state.maxFileSizeKb = value.coerceIn(MIN_FILE_SIZE_KB, MAX_FILE_SIZE_KB) }
+
     companion object {
+        const val DEFAULT_MAX_FILE_SIZE_KB = 1024
+        const val MIN_FILE_SIZE_KB = 64
+        const val MAX_FILE_SIZE_KB = 102400
+
         val instance: ColorBracketsSettings
             get() = ApplicationManager.getApplication().getService(ColorBracketsSettings::class.java)
     }

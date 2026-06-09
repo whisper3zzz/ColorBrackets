@@ -35,7 +35,7 @@ class RainbowHighlightVisitor : HighlightVisitor, DumbAware {
         if (!settings.isEnabled) return false
         // Only process code files, not plain text or documents
         val language = file.language.id
-        return !BracketSupport.isExcludedLanguage(language)
+        return BracketSupport.shouldProcessFile(language, file.textLength, settings)
     }
 
     override fun analyze(
